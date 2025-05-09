@@ -31,7 +31,7 @@ macro(BUILD_ALL_H)
     # remove items that are inapprorpiate to include in all.h as they are optional have external dependencies not provided by the VSG itself.
     list (REMOVE_ITEM UTILS_HEADERS "vsg/utils/TracyInstrumentation.h")
 
-    file(READ ${VSG_SOURCE_DIR}/cmake/header_license_preamble.txt ALL_H_CONTENTS)
+    file(READ ${VSG_MAINTAINER_CMAKE_DIR}/header_license_preamble.txt ALL_H_CONTENTS)
     APPEND_INCLUDES(ALL_H_CONTENTS CORE_HEADERS "// Core header files\n")
     APPEND_INCLUDES(ALL_H_CONTENTS MATHS_HEADERS "// Maths header files\n")
     APPEND_INCLUDES(ALL_H_CONTENTS NODES_HEADERS "// Node header files\n")

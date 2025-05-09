@@ -1,3 +1,4 @@
+
 #
 # macros provided by the vsg library
 #
@@ -47,19 +48,19 @@ endmacro()
 # setup directory related variables
 #
 macro(vsg_setup_dir_vars)
-    set(OUTPUT_BINDIR ${PROJECT_BINARY_DIR}/bin)
-    set(OUTPUT_LIBDIR ${PROJECT_BINARY_DIR}/lib)
-
-    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${OUTPUT_LIBDIR})
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${OUTPUT_BINDIR})
+    #set(OUTPUT_BINDIR ${PROJECT_BINARY_DIR}/bin)
+    #set(OUTPUT_LIBDIR ${PROJECT_BINARY_DIR}/lib)
+#
+    #set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${OUTPUT_LIBDIR})
+    #set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${OUTPUT_BINDIR})
 
     include(GNUInstallDirs)
 
     if(WIN32)
-        set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${OUTPUT_BINDIR})
-        # set up local bin directory to place all binaries
-        make_directory(${OUTPUT_BINDIR})
-        make_directory(${OUTPUT_LIBDIR})
+      #  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${OUTPUT_BINDIR})
+      #  # set up local bin directory to place all binaries
+      #  make_directory(${OUTPUT_BINDIR})
+      #  make_directory(${OUTPUT_LIBDIR})
         set(VSG_INSTALL_TARGETS_DEFAULT_FLAGS
             EXPORT ${PROJECT_NAME}Targets
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -68,9 +69,9 @@ macro(vsg_setup_dir_vars)
             INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
         )
     else()
-        set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${OUTPUT_LIBDIR})
-        # set up local bin directory to place all binaries
-        make_directory(${OUTPUT_LIBDIR})
+       # set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${OUTPUT_LIBDIR})
+       # # set up local bin directory to place all binaries
+       # make_directory(${OUTPUT_LIBDIR})
         set(VSG_INSTALL_TARGETS_DEFAULT_FLAGS
             EXPORT ${PROJECT_NAME}Targets
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -257,7 +258,9 @@ macro(vsg_add_target_clang_format)
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
             COMMENT "Automated code format using clang-format"
         )
-        set_target_properties(clang-format-${PROJECT_NAME} PROPERTIES FOLDER "${PROJECT_NAME} Folder")
+
+        string(TOUPPER ${PROJECT_NAME} UPPER_PROJECT_NAME)
+        set_target_properties(clang-format clang-format-${PROJECT_NAME} PROPERTIES FOLDER "${PROJECT_NAME}")
         add_dependencies(clang-format clang-format-${PROJECT_NAME})
     endif()
 endmacro()
@@ -272,11 +275,14 @@ endmacro()
 macro(vsg_add_target_clobber)
     if(Git_FOUND)
         # in source builds does not support dependencies here
+        string(TOUPPER ${PROJECT_NAME} UPPER_PROJECT_NAME)
         # see https://github.com/vsg-dev/VulkanSceneGraph/pull/566#issuecomment-1312496507
         if (PROJECT_BINARY_DIR STREQUAL PROJECT_SOURCE_DIR)
             add_custom_target(clobber
                 COMMAND ${GIT_EXECUTABLE} -C ${PROJECT_SOURCE_DIR} clean -d -f -x
             )
+            set_target_properties(clobber PROPERTIES FOLDER "${UPPER_PROJECT_NAME}Maintainer" EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+
         else()
             if (NOT TARGET clobber)
                 add_custom_target(clobber)
@@ -285,7 +291,7 @@ macro(vsg_add_target_clobber)
             add_custom_target(clobber-${PROJECT_NAME}
                 COMMAND ${GIT_EXECUTABLE} -C ${PROJECT_SOURCE_DIR} clean -d -f -x
             )
-            set_target_properties(clobber-${PROJECT_NAME} PROPERTIES FOLDER "${PROJECT_NAME} Folder" EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+            set_target_properties(clobber clobber-${PROJECT_NAME} PROPERTIES FOLDER "${UPPER_PROJECT_NAME}Maintainer" EXCLUDE_FROM_DEFAULT_BUILD TRUE)
             add_dependencies(clobber clobber-${PROJECT_NAME})
         endif()
     endif()
@@ -379,7 +385,7 @@ macro(vsg_add_target_docs)
             ${ARGS_FILES}
             COMMENT "Use doxygen to Generate html documentation"
         )
-        set_target_properties(docs PROPERTIES FOLDER "${PROJECT_NAME} Folder")
+        set_target_properties(docs docs-${PROJECT_NAME} PROPERTIES FOLDER "${PROJECT_NAME} Folder")
         add_dependencies(docs docs-${PROJECT_NAME})
     endif()
 endmacro()
@@ -394,7 +400,7 @@ endmacro()
 macro(vsg_add_target_uninstall)
     # we are running inside VulkanSceneGraph
     if (PROJECT_NAME STREQUAL "vsg")
-        set(DIR ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+        set(DIR ${VSG_CMAKE_DIR})
     elseif(vsg_DIR)
         set(DIR ${vsg_DIR})
     else()
@@ -407,7 +413,7 @@ macro(vsg_add_target_uninstall)
     add_custom_target(uninstall-${PROJECT_NAME}
         COMMAND ${CMAKE_COMMAND} -P ${DIR}/uninstall.cmake
     )
-    set_target_properties(uninstall-${PROJECT_NAME} PROPERTIES FOLDER "${PROJECT_NAME} Folder" EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+    set_target_properties(uninstall uninstall-${PROJECT_NAME} PROPERTIES FOLDER "UninstallTargets" EXCLUDE_FROM_DEFAULT_BUILD TRUE)
     add_dependencies(uninstall uninstall-${PROJECT_NAME})
 endmacro()
 
@@ -454,7 +460,32 @@ macro(vsg_check_min_vulkan_header_version _min_version)
     endif()
 endmacro()
 
-#
-# add options for vsg and all packages depending on vsg
-#
-option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+function(has_cxx_atomic_intrinsic OUT)
+
+    if(NOT MSVC AND NOT ANDROID AND NOT APPLE)
+        include(CheckCXXSourceCompiles)
+
+        check_cxx_source_compiles("
+            #include <atomic>
+            int main()
+            {
+                std::atomic_uint64_t a64(1);
+                auto orig_value = a64.load();
+
+                uint64_t new_value = 1;
+                auto r = a64.compare_exchange_weak(orig_value, new_value);
+
+                return 0;
+            }"
+            HAVE_CXX_ATOMIC_WITHOUT_LIB
+        )
+            if (HAVE_CXX_ATOMIC_WITHOUT_LIB)
+                set(${OUT} ON PARENT_SCOPE)
+            else()
+                set(${OUT} OFF PARENT_SCOPE)
+            endif()
+    else()
+        set(${OUT} ON PARENT_SCOPE)
+    endif()
+
+endfunction(has_cxx_atomic_intrinsic)

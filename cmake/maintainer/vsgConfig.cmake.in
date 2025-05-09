@@ -1,0 +1,90 @@
+include(CMakeFindDependencyMacro)
+
+find_package(Vulkan @Vulkan_MIN_VERSION@ REQUIRED)
+find_dependency(Threads)
+
+# Provide clients a chance to query supports
+set(VSG_SUPPORTS_ShaderCompiler @VSG_SUPPORTS_ShaderCompiler@) 
+set(VSG_SUPPORTS_ShaderOptimizer @VSG_SUPPORTS_ShaderOptimizer@)
+set(VSG_SUPPORTS_Windowing @VSG_SUPPORTS_Windowing@) 
+
+
+if (VSG_SUPPORTS_ShaderCompiler)
+    find_package(glslang @GLSLANG_MIN_VERSION@ CONFIG REQUIRED)
+endif()
+
+if (VSG_SUPPORTS_ShaderOptimizer)
+    find_dependency(SPIRV-Tools-opt)
+endif()
+
+if (VSG_SUPPORTS_Windowing)
+
+    @FIND_DEPENDENCY_WINDOWING@
+
+endif()
+
+
+
+include("${CMAKE_CURRENT_LIST_DIR}/vsgTargets.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/vsgMacros.cmake")
+
+set(_VSG_IMPORTED_COMPONENTS "")
+if(TARGET vsg::vsg) # Always provides the canonical vsg interface link component
+    set(vsg_FOUND ON)
+endif()
+
+if(TARGET vsg::vsg-shared)
+    set(vsg-shared_FOUND ON)
+    list(APPEND _VSG_IMPORTED_COMPONENTS vsg-shared)
+endif()
+
+if(TARGET vsg::vsg-static)
+    set(vsg-static_FOUND ON)
+    list(APPEND _VSG_IMPORTED_COMPONENTS vsg-static)
+endif()
+
+if(TARGET vsg::vsg-headers) # CURRENTLY NOT PROVIDED
+    set(vsg-headers_FOUND ON)
+    list(APPEND _VSG_IMPORTED_COMPONENTS vsg-headers)
+endif()
+
+# validate requested components
+foreach(comp IN LISTS vsg_FIND_COMPONENTS)
+    if(NOT comp IN_LIST _VSG_IMPORTED_COMPONENTS)
+        set(vsg_FOUND OFF)
+        set(vsg_NOT_FOUND_MESSAGE "Component ${comp} is not available in this VSG installation")
+        return()
+    endif()
+endforeach()
+
+if(vsg_FOUND)
+    # Get version info if available (make sure this variable is set by VSG config)
+    if(DEFINED vsg_VERSION)
+        set(_vsg_version "${vsg_VERSION}")
+    else()
+        set(_vsg_version "Unknown version")
+    endif()
+
+    # Construct components string (components that were found)
+    string(REPLACE ";" " " _vsg_components "${_VSG_IMPORTED_COMPONENTS}")
+
+    # Get the location (install path) of a core target (vsg-shared and/or vsg-static)
+    set(_vsg_locations "")
+    if(vsg-shared_FOUND)
+        get_target_property(_loc vsg::vsg-shared LOCATION)
+        list(APPEND _vsg_locations "vsg-shared: ${_loc}")
+    endif()
+
+    if(vsg-static_FOUND)
+        get_target_property(_loc vsg::vsg-static LOCATION)
+        list(APPEND _vsg_locations "vsg-static: ${_loc}")
+    endif()
+
+    if(_vsg_locations STREQUAL "")
+        set(_vsg_locations "UNKNOWN")
+    else()
+        string(REPLACE ";" ", " _vsg_locations "${_vsg_locations}")
+    endif()
+
+    message(STATUS "Found vsg: ${_vsg_locations} (found suitable version \"${_vsg_version}\") found components: ${_vsg_components}")
+endif()
